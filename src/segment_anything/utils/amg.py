@@ -14,7 +14,7 @@ from typing import Any, Dict, Generator, ItemsView, List, Tuple
 
 
 class MaskData:
-    """
+    """  索引转变-元祖构造
     A structure for storing masks and their related data in batched format.
     Implements basic filtering and concatenation.
     """

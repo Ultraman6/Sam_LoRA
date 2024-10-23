@@ -16,12 +16,12 @@ This file is used to plots the predictions of a model (either baseline or LoRA) 
 referencing by lines : 
 line 22: change the rank of lora; line 98: Do inference on train (inference_train=True) else on test; line 101 and 111 is_baseline arguments in fuction: True to use baseline False to use LoRA model. 
 """
-sam_checkpoint = "sam_vit_b_01ec64.pth"
+sam_checkpoint = "F:\Github\Sam_LoRA\sam_weights\sam_vit_b_01ec64.pth"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 sam = build_sam_vit_b(checkpoint=sam_checkpoint)
-rank = 64
+rank = 512
 sam_lora = LoRA_sam(sam, rank)
-sam_lora.load_lora_parameters(f"./lora_weights/lora_rank{rank}.safetensors")
+sam_lora.load_lora_parameters(f'F:\Github\Sam_LoRA\save\default_lora\lora_rank512.safetensors')
 model = sam_lora.sam
 
 
@@ -61,9 +61,11 @@ def inference_model(sam_model, image_path, filename, mask_path=None, bbox=None, 
         if is_baseline:
             ax2.set_title(f"Baseline SAM prediction: {filename}")
             plt.savefig(f"./plots/{filename}_baseline.jpg")
+            print(1)
         else:
             ax2.set_title(f"SAM LoRA rank {rank} prediction: {filename}")
             plt.savefig(f"./plots/{filename[:-4]}_rank{rank}.jpg")
+            print(2)
 
     else:
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, sharex=True, sharey=True, figsize=(15, 15))
@@ -79,9 +81,11 @@ def inference_model(sam_model, image_path, filename, mask_path=None, bbox=None, 
         if is_baseline:
             ax3.set_title(f"Baseline SAM prediction: {filename}")
             plt.savefig(f"./plots/{filename}_baseline.jpg")
+            print(3)
         else:
             ax3.set_title(f"SAM LoRA rank {rank} prediction: {filename}")
             plt.savefig(f"./plots/{filename[:-4]}_rank{rank}.jpg")
+            print(4)
 
 
 # Open configuration file

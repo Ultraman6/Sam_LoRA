@@ -44,6 +44,7 @@ class LoRA_qkv(nn.Module):
         self.d_model = qkv.in_features
         self.w_identity = torch.eye(qkv.in_features)
 
+    # 等价于并行的注意力权重（原始+lora）
     def forward(self, x: Tensor):
         qkv = self.qkv(x)
         q_ba = self.linear_b_q(self.linear_a_q(x))
@@ -106,6 +107,7 @@ class LoRA_sam(nn.Module):
             self.A_weights.append(w_a_linear_v)
             self.B_weights.append(w_b_linear_v)
 
+            # 为vit构造lora注意力 已是sam+lora的合并
             blk.attn.qkv = LoRA_qkv(
                 w_qkv_linear,
                 w_a_linear_q,
@@ -117,7 +119,6 @@ class LoRA_sam(nn.Module):
         self.reset_parameters()
         self.sam = sam_model
         self.lora_vit = sam_model.image_encoder
-
 
     def reset_parameters(self):
         """
@@ -169,5 +170,61 @@ class LoRA_sam(nn.Module):
                 saved_tensor = f.get_tensor(saved_key)
                 w_B_linear.weight = nn.Parameter(saved_tensor)
 
-with open("./config.yaml", "r") as ymlfile:
-   config_file = yaml.load(ymlfile, Loader=yaml.Loader)
+
+    # def merge_lora(self):
+    #     """
+    #     Merge the LoRA weights back into the original SAM model weights,
+    #     and remove the LoRA layers to reduce model complexity.
+    #
+    #     After calling this function, the original weights W will be updated as:
+    #     W_merged = W + B * A
+    #     """
+    #     for t_layer_i, blk in enumerate(self.sam.image_encoder.blocks):
+    #         if t_layer_i not in self.lora_layer:
+    #             continue
+    #
+    #         # Merge LoRA weights for the q and v parts
+    #         w_qkv_linear = blk.attn.qkv
+    #
+    #         # Merging the query weights
+    #         w_qkv_linear.data[:, :self.d_model] += torch.mm(
+    #             self.B_weights[2 * t_layer_i].weight,
+    #             self.A_weights[2 * t_layer_i].weight
+    #         )
+    #
+    #         # Merging the value weights
+    #         w_qkv_linear.data[:, -self.d_model:] += torch.mm(
+    #             self.B_weights[2 * t_layer_i + 1].weight,
+    #             self.A_weights[2 * t_layer_i + 1].weight
+    #         )
+    #
+    #     # 删除 LoRA 层，节省内存
+    #     # self.A_weights = None
+    #     # self.B_weights = None
+    #     print("LoRA weights merged and unloaded from the model.")
+
+    # def load_sam(self, filename: str):
+    #     """
+    #     Load the LoRA weights and merge them back into the SAM model
+    #
+    #     Arguments:
+    #         filename: Name of the file containing the saved weights
+    #
+    #     Return:
+    #         None: Loads the weights to the SAM model
+    #     """
+    #     self.load_lora_parameters(filename)
+    #     self.merge_lora()
+
+    def save_sam(self, filename: str):
+        """
+        Save the SAM model with the LoRA weights merged back
+
+        Arguments:
+            filename: Name of the file that will be saved
+
+        Return:
+            None: Saves the SAM model
+        """
+        torch.save(self.sam.state_dict(), filename)
+

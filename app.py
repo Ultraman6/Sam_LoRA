@@ -10,10 +10,12 @@ import yaml
 import cv2
 import torch
 
+# 推理可视化demo
+
 with open("./config.yaml", "r") as ymlfile:
         config_file = yaml.load(ymlfile, Loader=yaml.Loader)
 
-device = device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 colors = (255, 0, 0)
 # SAM model
 sam = build_sam_vit_b(checkpoint=config_file["SAM"]["CHECKPOINT"])
@@ -42,7 +44,7 @@ with gr.Blocks() as demo:
             selected_points = gr.State([])
             masks = gr.State([])
 
-            with gr.Row().style(equal_height=True):
+            with gr.Row(equal_height=True):
                 undo_points_button = gr.Button("Undo point")
                 reset_points_button = gr.Button("Reset points")
                 segment_button = gr.Button("Generate mask")
@@ -94,7 +96,7 @@ with gr.Blocks() as demo:
             box=input_points,
             multimask_output=False
         )
-        mask =  Image.fromarray(masks[0])
+        mask = Image.fromarray(masks[0])
         
         return mask
 

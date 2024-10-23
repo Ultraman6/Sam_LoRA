@@ -160,7 +160,7 @@ class PromptEncoder(nn.Module):
 
         if masks is not None:
             dense_embeddings = self._embed_masks(masks)
-        else:
+        else:   # 整张图像的提示（prompt无法学习参数）
             dense_embeddings = self.no_mask_embed.weight.reshape(1, -1, 1, 1).expand(
                 bs, -1, self.image_embedding_size[0], self.image_embedding_size[1]
             )

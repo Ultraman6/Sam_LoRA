@@ -1,10 +1,17 @@
 DATASET:
-  TRAIN_PATH: "./dataset/train"
-  TEST_PATH: "./dataset/test"
+  TRAIN_PATH: F:\Github\Sam_LoRA\dataset\train
+  TEST_PATH: F:\Github\Sam_LoRA\dataset\test
 
 SAM:
-  CHECKPOINT: "./sam_vit_b_01ec64.pth"
+  TYPE: vit_b
+  CHECKPOINT: ./sam_weights/sam_vit_b_01ec64.pth
+LORA:
   RANK: 512
 TRAIN:
+  FRAC: 1.0
   BATCH_SIZE: 1
   NUM_EPOCHS: 50
+
+SAVE:
+  ROOT: F:\Github\Sam_LoRA\save
+  NAME: default_lora

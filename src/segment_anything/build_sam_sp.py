@@ -12,7 +12,7 @@ from .modeling import ImageEncoderViT, MaskDecoder, PromptEncoder, Sam, TwoWayTr
 from .modeling.sam import Sam_SP
 
 
-def build_sam_vit_h(checkpoint=None):
+def build_sam_sp_vit_h(checkpoint=None):
     return _build_sam(
         encoder_embed_dim=1280,
         encoder_depth=32,
@@ -22,10 +22,10 @@ def build_sam_vit_h(checkpoint=None):
     )
 
 
-build_sam = build_sam_vit_h
+build_sam = build_sam_sp_vit_h
 
 
-def build_sam_vit_l(checkpoint=None):
+def build_sam_sp_vit_l(checkpoint=None):
     return _build_sam(
         encoder_embed_dim=1024,
         encoder_depth=24,
@@ -35,8 +35,8 @@ def build_sam_vit_l(checkpoint=None):
     )
 
 
-def build_sam_vit_b(checkpoint=None):
-    return _build_sam(
+def build_sam_sp_vit_b(checkpoint=None):
+    return _build_sam_sp(
         encoder_embed_dim=768,
         encoder_depth=12,
         encoder_num_heads=12,
@@ -45,28 +45,26 @@ def build_sam_vit_b(checkpoint=None):
     )
 
 
-sam_model_registry = {
-    "default": build_sam_vit_h,
-    "vit_h": build_sam_vit_h,
-    "vit_l": build_sam_vit_l,
-    "vit_b": build_sam_vit_b,
+sam_sp_model_registry = {
+    "default": build_sam_sp_vit_h,
+    "vit_h": build_sam_sp_vit_h,
+    "vit_l": build_sam_sp_vit_l,
+    "vit_b": build_sam_sp_vit_b,
 }
 
 
-def _build_sam(
+def _build_sam_sp(
     encoder_embed_dim,
     encoder_depth,
     encoder_num_heads,
     encoder_global_attn_indexes,
     checkpoint=None,
-    is_sp=False
 ):
     prompt_embed_dim = 256
     image_size = 1024
     vit_patch_size = 16
     image_embedding_size = image_size // vit_patch_size
-    Model = Sam if not is_sp else Sam_SP
-    sam = Model(
+    sam_sp = Sam_SP(
         image_encoder=ImageEncoderViT(
             depth=encoder_depth,
             embed_dim=encoder_embed_dim,
@@ -102,9 +100,9 @@ def _build_sam(
         pixel_mean=[123.675, 116.28, 103.53],
         pixel_std=[58.395, 57.12, 57.375],
     )
-    sam.train()
+    sam_sp.train()
     if checkpoint is not None:
         with open(checkpoint, "rb") as f:
-            state_dict = torch.load(f)
-        sam.load_state_dict(state_dict, strict=False)
-    return sam
+            state_dict = torch.load(f)  # 此时就可能仅传入主体sam参数（从头训练）
+        sam_sp.load_state_dict(state_dict, strict=False)
+    return sam_sp

@@ -8,9 +8,9 @@ from torch.optim import Adam
 from torch.nn.functional import threshold, normalize
 from torchvision.utils import save_image
 import src.utils as utils
-from src.dataloader import DatasetSegmentation, collate_fn
+from src.dataloader import DatasetSegmentation, collate_fn, SemSegDataset
 from src.processor import Samprocessor
-from src.segment_anything import build_sam_vit_b, SamPredictor
+from src.segment_anything import build_sam_vit_b, SamPredictor, sam_model_registry
 from src.lora import LoRA_sam
 import matplotlib.pyplot as plt
 import yaml
@@ -33,10 +33,13 @@ total_baseline_loss = []
 baseline_loss = 0
 # Load SAM model
 with torch.no_grad():
-    sam = build_sam_vit_b(checkpoint=config_file["SAM"]["CHECKPOINT"])
+
+    sam = sam_model_registry[config_file["SAM"]["TYPE"]](checkpoint=config_file["SAM"]["CHECKPOINT"])
     baseline = sam
     processor = Samprocessor(baseline)
     dataset = DatasetSegmentation(config_file, processor, mode="test")
+    # dataset = SemSegDataset(config_file["DATASET"]["TRAIN_PATH"], processor=processor,
+    #                      is_val=True, frac=config_file["TRAIN"]["FRAC"])
     test_dataloader = DataLoader(dataset, batch_size=1, collate_fn=collate_fn)
     baseline.eval()
     baseline.to(device)   

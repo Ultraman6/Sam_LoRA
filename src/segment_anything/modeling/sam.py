@@ -1,5 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
+import copy
 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
@@ -13,6 +14,8 @@ from typing import Any, Dict, List, Tuple
 from .image_encoder import ImageEncoderViT
 from .mask_decoder import MaskDecoder
 from .prompt_encoder import PromptEncoder
+from ..utils.amg import MaskData, calculate_stability_score, batched_mask_to_box
+
 
 class Sam(nn.Module):
     mask_threshold: float = 0.0
@@ -48,6 +51,7 @@ class Sam(nn.Module):
     @property
     def device(self) -> Any:
         return self.pixel_mean.device
+
 
     def forward(
         self,
@@ -176,3 +180,89 @@ class Sam(nn.Module):
         padw = self.image_encoder.img_size - w
         x = F.pad(x, (0, padw, 0, padh))
         return x
+
+class Sam_SP(Sam):
+    def __init__(self, image_encoder: ImageEncoderViT, prompt_encoder: PromptEncoder, mask_decoder: MaskDecoder,
+                 pixel_mean=None,
+                 pixel_std=None) -> None:
+        if pixel_mean is None:
+            pixel_mean = [123.675, 116.28, 103.53]
+        if pixel_std is None:
+            pixel_std = [58.395, 57.12, 57.375]
+        super().__init__(image_encoder, prompt_encoder, mask_decoder, pixel_mean, pixel_std)
+        self._prompt_encoder = copy.deepcopy(prompt_encoder)  # 端到端训练时，需要保留prompt_encoder
+        self._mask_decoder = copy.deepcopy(mask_decoder)
+
+    def forward(
+        self,
+        batched_input: List[Dict[str, Any]],  # assume without prompt
+        multimask_output: bool,
+    ) -> List[Dict[str, torch.Tensor]]:
+        input_images = torch.stack([self.preprocess(x["image"].squeeze(0)) for x in batched_input], dim=0)
+        image_embeddings = self.image_encoder(input_images)
+
+        outputs = []  # 逐样本batch处理
+        for image_record, curr_embedding in zip(batched_input, image_embeddings):
+            if "point_coords" in image_record:
+                points = (image_record["point_coords"], image_record["point_labels"])
+            else:
+                points = None
+            sparse_embeddings, dense_embeddings = self.prompt_encoder(
+                points=points,
+                boxes=None,
+                masks=None,
+            )
+            low_res_masks, iou_predictions = self.mask_decoder(
+                image_embeddings=curr_embedding.unsqueeze(0),
+                image_pe=self.prompt_encoder.get_dense_pe(),
+                sparse_prompt_embeddings=sparse_embeddings,
+                dense_prompt_embeddings=dense_embeddings,
+                multimask_output=multimask_output,
+            )
+
+            masks = self.postprocess_masks(
+                low_res_masks,
+                input_size=image_record["image"].shape[-2:],
+                original_size=image_record["original_size"],
+            )
+
+            low_res_mask_reshaped = masks
+            masks = masks > self.mask_threshold
+
+            # 相当于遍历每个mask并生成相应的box
+            box_prompt = batched_mask_to_box(masks)
+            # 需保证外部无任何形式的prompt
+            _sparse_embeddings, _dense_embeddings = self._prompt_encoder(
+                points=points,
+                boxes=box_prompt,
+                masks=None,
+            )
+            _low_res_masks, _iou_predictions = self._mask_decoder(
+                image_embeddings=curr_embedding.unsqueeze(0),  # image_embeddings传入逻辑同上
+                image_pe=self._prompt_encoder.get_dense_pe(),
+                sparse_prompt_embeddings=_sparse_embeddings,
+                dense_prompt_embeddings=_dense_embeddings,
+                multimask_output=multimask_output,
+            )
+
+            _masks = self.postprocess_masks(
+                _low_res_masks,
+                input_size=image_record["image"].shape[-2:],
+                original_size=image_record["original_size"],
+            )
+
+            _low_res_mask_reshaped = _masks
+            _masks = _masks > self.mask_threshold  #mask code激活
+            outputs.append(
+                {
+                    "masks": masks,
+                    "iou_preds": iou_predictions,
+                    "low_res_logits": low_res_mask_reshaped,
+                    "_masks": _masks,
+                    "_iou_preds": _iou_predictions,
+                    "_low_res_logits": _low_res_mask_reshaped,
+                }
+            )
+        return outputs
+
+

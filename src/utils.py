@@ -57,9 +57,8 @@ def plot_image_mask_dataset(dataset: torch.utils.data.Dataset, idx: int):
     mask = mask.convert('1')
     plot_image_mask(image, mask)
 
-
 def get_bounding_box(ground_truth_map: np.array) -> list:
-  """
+  """ max-min coordinates of the bounding box of the mask
   Get the bounding box of the image with the ground truth mask
   
     Arguments:
@@ -102,3 +101,31 @@ def stacking_batch(batch, outputs):
     stk_out = torch.stack([out["low_res_logits"] for out in outputs], dim=0)
         
     return stk_gt, stk_out
+
+
+def stacking_batch_sp(batch, outputs):
+    """
+    Given the batch and outputs of SAM_SP, stacks the tensors to compute the loss. We stack by adding another dimension.
+
+    Arguments:
+        batch(list(dict)): List of dict with the keys given in the dataset file
+        outputs: list(dict): List of dict that are the outputs of SAM
+
+    Return:
+        stk_gt: Stacked tensor of the ground truth masks in the batch. Shape: [batch_size, H, W] -> We will need to add the channels dimension (dim=1)
+        stk_out: Stacked tensor of logits mask outputed by SAM. Shape: [batch_size, 1, 1, H, W] -> We will need to remove the extra dimension (dim=1) needed by SAM
+    """
+    stk_gt = torch.stack([b["ground_truth_mask"] for b in batch], dim=0)
+    stk_out = torch.stack([out["low_res_logits"] for out in outputs], dim=0)
+    _stk_out = torch.stack([out["_low_res_logits"] for out in outputs], dim=0)
+
+    return stk_gt.unsqueeze(1), stk_out.squeeze(1), _stk_out.squeeze(1)
+
+
+def normalize_to_one(lst):
+    total = sum(lst)
+    if total == 0:
+        return [0] * len(lst)
+
+    normalized_lst = [x / total for x in lst]
+    return normalized_lst
